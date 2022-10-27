@@ -3,6 +3,88 @@ import serial
 import struct
 import packet_util
 import crc
+import enum
+
+PACKET_TYPE_ALTITUDE =      1
+PACKET_TYPE_COORDINATES =   2
+PACKET_TYPE_C =             4
+PACKET_TYPE_D =             8
+
+PACKET_TYPES = [
+    PACKET_TYPE_ALTITUDE,
+    PACKET_TYPE_COORDINATES,
+    PACKET_TYPE_C,
+    PACKET_TYPE_D,
+]
+
+PAYLOAD_SIZE = {
+    PACKET_TYPE_ALTITUDE:    4,
+    PACKET_TYPE_COORDINATES: 8,
+    PACKET_TYPE_C:           4,
+    PACKET_TYPE_D:           1,
+}
+
+PAYLOAD_FORMAT = {
+    PACKET_TYPE_ALTITUDE:    '>f',
+    PACKET_TYPE_COORDINATES: '>ff',
+    PACKET_TYPE_C:           '>i',
+    PACKET_TYPE_D:           '>?',
+}
+
+
+CHECKSUM_CALCULATOR = crc.CrcCalculator(crc.Crc16.CCITT)
+
+
+def get_packet_types(n: int):
+    """
+    Splits a packet type bitflag into multiple packet type integers.
+    Code from <https://www.spatialtimes.com/2014/07/binary-flags-with-python/>
+
+    - n: The integer to be interpreted as a bitflag.
+
+    Usage: `for packet_type in get_packet_types(flags):`
+    """
+    while n:
+        b = n & (~n+1)
+        yield b
+        n ^= b
+
+def create_packet(types: int, data: tuple) -> bytes:
+    """
+    Constructs a binary packet.
+
+    - types: Integer bitflag of packet types.
+    - data: Tuple of data. This is the packet's payload, ordered according to the packet type priority.
+    """
+
+    header = struct.pack('>h', types)
+    # footer = struct.pack('>h', checksum)
+
+    body = bytes()
+    type_flags: list[int] = get_packet_types(types)
+    idx_data = 0
+    for type_flag in type_flags:
+
+        if type_flag == PACKET_TYPE_ALTITUDE:
+            body = body + struct.pack('>f', data[idx_data])
+            idx_data += 1
+        
+        elif type_flag == PACKET_TYPE_COORDINATES:
+            body = body + struct.pack('>ff', data[idx_data], data[idx_data + 1])
+            idx_data += 2
+        
+        elif type_flag == PACKET_TYPE_C:
+            body = body + struct.pack('>i', data[idx_data])
+            idx_data += 1
+        
+        elif type_flag == PACKET_TYPE_D:
+            body = body + struct.pack('>?', data[idx_data])
+            idx_data += 1
+    
+    checksum = CHECKSUM_CALCULATOR.calculate_checksum(header + body)
+    footer = struct.pack('>i', checksum)
+
+    return header + body + footer
 
 class IliadDataController(serial_data_controller.SerialDataController):
 
@@ -10,7 +92,6 @@ class IliadDataController(serial_data_controller.SerialDataController):
         super().__init__()
 
         self.data_buffer = bytearray()
-        self.checksum_calculator = crc.CrcCalculator(crc.Crc16.CCITT)
     
     def update(self) -> None:
         if self.is_open():
@@ -39,15 +120,10 @@ class IliadDataController(serial_data_controller.SerialDataController):
                     packet_types: list[int] = list(packet_util.get_packet_types(packet_types_raw))
                     self.idx_cursor += 2
                 
-                for packet_type in [ # TODO: Turn constants into an enum.
-                    packet_util.PACKET_TYPE_ALTITUDE,
-                    packet_util.PACKET_TYPE_COORDINATES,
-                    packet_util.PACKET_TYPE_C,
-                    packet_util.PACKET_TYPE_D,
-                ]:
+                for packet_type in PACKET_TYPES:
                     if packet_type in packet_types:
-                        payload_size = packet_util.PAYLOAD_SIZE[packet_type]
-                        payload_format = packet_util.PAYLOAD_FORMAT[packet_type]
+                        payload_size = PAYLOAD_SIZE[packet_type]
+                        payload_format = PAYLOAD_FORMAT[packet_type]
                         if len(self.data_buffer) - self.idx_cursor >= payload_size:
                             payload_bytes = self.data_buffer[self.idx_cursor:(self.idx_cursor + payload_size)]
                             payload = struct.unpack(payload_format, payload_bytes)
@@ -64,7 +140,7 @@ class IliadDataController(serial_data_controller.SerialDataController):
                 
                 # Check packet checksum:
                 is_ok = False
-                if self.checksum_calculator.verify_checksum(packet_types_bytes + packet_payload_bytes, packet_checksum):
+                if CHECKSUM_CALCULATOR.verify_checksum(packet_types_bytes + packet_payload_bytes, packet_checksum):
                     is_ok = True
                 
                 if is_ok:
@@ -72,7 +148,7 @@ class IliadDataController(serial_data_controller.SerialDataController):
                     print(f'\t{packet_types} {packet_payload} {packet_checksum}')
                 else:
                     print(f'[BAD] {packet_types_bytes.hex()} {packet_payload_bytes.hex()} {packet_checksum_bytes.hex()}')
-                    print(f'\tExpected {self.checksum_calculator.calculate_checksum(packet_types_bytes + packet_payload_bytes)}, got {packet_checksum}')
+                    print(f'\tExpected {CHECKSUM_CALCULATOR.calculate_checksum(packet_types_bytes + packet_payload_bytes)}, got {packet_checksum}')
 
                 if is_ok:
                     self.data_buffer = self.data_buffer[self.idx_cursor:]
@@ -84,10 +160,6 @@ class IliadDataController(serial_data_controller.SerialDataController):
                 
                 # The basic algorithm for recovery is:
                 # If crc doesn't match up, discard one byte at a time and try to parse again.
-                
-
-
-
 
 # Test cases
 if __name__ == '__main__':
@@ -109,4 +181,4 @@ if __name__ == '__main__':
             test.update()
     finally:
         test.close()
-        print("cleaned up")
+        print("Serial port closed.")
