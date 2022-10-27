@@ -166,19 +166,38 @@ if __name__ == '__main__':
 
     # Test update()
     test = IliadDataController()
-    config = {
+    test.set_config({
         'port_name': 'COM2',
         'port_baud_rate': 9600,
         'port_stop_bits': serial.STOPBITS_ONE,
         'port_parity': serial.PARITY_NONE,
         'port_byte_size': serial.EIGHTBITS,
-    }
-    test.set_config(config)
+    })
     test.open()
-    # for i in range(1000):
-    try:
-        while True:
+    test.update()
+    test.close()
+    
+    # Test packet parsing
+    test = IliadDataController()
+    test.set_config({
+        'port_name': 'COM2',
+        'port_baud_rate': 9600,
+        'port_stop_bits': serial.STOPBITS_ONE,
+        'port_parity': serial.PARITY_NONE,
+        'port_byte_size': serial.EIGHTBITS,
+    })
+    test.open()
+    with serial.Serial(
+        port='COM1',
+        baudrate=9600,
+        stopbits=serial.STOPBITS_ONE,
+        parity=serial.PARITY_NONE,
+        bytesize=serial.EIGHTBITS,
+        timeout=3,
+        write_timeout=3,
+    ) as port:
+        port.write(packet_util.create_packet(packet_util.PACKET_TYPE_ALTITUDE, (42.0,)))
+        for i in range(1000):
             test.update()
-    finally:
-        test.close()
-        print("Serial port closed.")
+    test.close()
+
