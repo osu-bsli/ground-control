@@ -209,7 +209,7 @@ class Grapher(AppComponent):
                                     gps_ground_speed_plot.add()
 
                                 with gui.table_cell():
-                                    self.image_grid = ResizableImage("resources/3dgridy2.png")
+                                    self.image_grid = ResizableImage("resources/graphWithUnits.png")
 
                                 with gui.table_cell():
                                     self.image_rocket = ResizableImage("resources/rocketWithoutLabels.png")
