@@ -6,3 +6,4 @@ tomli_w~=1.0.0
 future~=0.18.3
 crc~=6.1.0
 bidict~=0.22.1
+pymavlink~=2.4.41

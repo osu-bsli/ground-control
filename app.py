@@ -14,7 +14,6 @@ BUTTON_INACTIVE_COLOR = (150, 30, 30)  # red
 class App:
     # Widget tags
     TAG_MAIN_WINDOW = 'app.main_window'
-    TAG_CONFIG_WINDOW = 'app.config_window'
 
     def __init__(self) -> None:
         self.left_sidebar = NumericalDataView(2)
@@ -136,18 +135,18 @@ class App:
         gui.setup_dearpygui()
 
         with gui.font_registry():
-            primary_font = gui.add_font('assets/fonts/open_sans/OpenSans-VariableFont_wdth,wght.ttf',
+            self.primary_font = gui.add_font('assets/fonts/open_sans/OpenSans-VariableFont_wdth,wght.ttf',
                                         16 * self.scaling_factor)
-            gui.bind_font(primary_font)
+            self.large_font = gui.add_font('assets/fonts/open_sans/OpenSans-VariableFont_wdth,wght.ttf',
+                                        32 * self.scaling_factor)
+            gui.bind_font(self.primary_font)
 
-        self.iliad = IliadDataController('iliad_data_controller')
+        self.iliad = IliadDataController(self)
         self.grapher = Grapher('grapher', self.scaling_factor)
 
         with gui.window(tag=App.TAG_MAIN_WINDOW):
             gui.bind_theme(create_theme_imgui_light())
             with gui.menu_bar():
-                with gui.menu(label='Options'):
-                    gui.add_menu_item(label='Config', callback=lambda: gui.show_item(App.TAG_CONFIG_WINDOW))
                 with gui.menu(label='Tools'):
                     gui.add_menu_item(label='Packet Inspector', callback=None)
                     gui.add_menu_item(label='GUI Demo', callback=gui.show_imgui_demo)
@@ -172,30 +171,6 @@ class App:
                             self.grapher.add()
 
             gui.set_primary_window(App.TAG_MAIN_WINDOW, True)
-
-        # Init config menu:
-        with gui.window(label='Config', tag=App.TAG_CONFIG_WINDOW, min_size=(512, 512)):
-            # Add categories and corresponding child windows:
-            with gui.tree_node(label='General'):
-                with gui.tree_node(label='Controls'):
-                    gui.add_text('No options available.')
-                with gui.tree_node(label='Visuals'):
-                    gui.add_text('No options available.')
-                with gui.tree_node(label='Misc'):
-                    gui.add_text('No options available.')
-            with gui.tree_node(label='Grapher'):
-                gui.add_text('No options available.')
-            with gui.tree_node(label='Iliad Data Controller'):
-                self.iliad.add_config_menu()
-
-            with gui.group(horizontal=True):
-                def on_apply_config():
-                    # self.grapher.apply_config()
-                    self.iliad.apply_config()
-
-                gui.add_button(label='Cancel', callback=lambda: gui.hide_item(App.TAG_CONFIG_WINDOW))
-                gui.add_button(label='Apply', callback=on_apply_config)
-        gui.hide_item(App.TAG_CONFIG_WINDOW)
 
         gui.show_viewport()
         gui.maximize_viewport()
@@ -262,6 +237,6 @@ class App:
             self.update()
             gui.render_dearpygui_frame()
 
-        self.iliad.close()
-
+        self.iliad.destroy()
         gui.destroy_context()
+
